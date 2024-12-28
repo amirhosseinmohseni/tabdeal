@@ -1,0 +1,29 @@
+version: "3.3"
+
+networks:
+  default:
+    external: false
+
+volumes:
+  pg_data:
+
+services:
+  postgres:
+    image: postgres:14.3
+    container_name: postgres
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "$POSTGRES_DB", "-U", "$POSTGRES_USER" ]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: ${PGDATA}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/data/postgres
+    networks:
+      - default
