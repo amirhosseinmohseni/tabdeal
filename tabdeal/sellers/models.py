@@ -34,6 +34,7 @@ class Seller(AbstractBaseUser, PermissionsMixin):
         return self.phone_number
     
 class Customer(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     phone_number = models.CharField(max_length=11, unique=True)
     wallet = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 

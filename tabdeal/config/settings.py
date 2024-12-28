@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     
     # my apps
     'sellers',
+    'transactions',
     
     # default apps
     'django.contrib.admin',
