@@ -36,10 +36,12 @@ INSTALLED_APPS = [
     # third party apps
     'rest_framework',
     'rest_framework.authtoken',
+    'drf_spectacular',
     
     # my apps
     'sellers',
     'transactions',
+    'api',
     
     # default apps
     'django.contrib.admin',
@@ -51,6 +53,7 @@ INSTALLED_APPS = [
 ]
 
 REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ]
@@ -60,6 +63,13 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=20),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=2),
     'ROTATE_REFRESH_TOKEN': True
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Tabdeal project API',
+    'DESCRIPTION': 'This is API swagger for Tabdeal project.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
 
 MIDDLEWARE = [
