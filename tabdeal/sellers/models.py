@@ -3,7 +3,7 @@ from django.contrib.auth.models import PermissionsMixin
 from django.db import models
 import uuid
 
-class CustomUserManager(BaseUserManager):
+class CustomSellerManager(BaseUserManager):
     def create_user(self, phone_number, password=None, **extra_fields):
         if not phone_number:
             raise ValueError("The Phone Number field must be set")
@@ -25,7 +25,7 @@ class Seller(AbstractBaseUser, PermissionsMixin):
     is_superuser = models.BooleanField(default=False)
     wallet = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
-    objects = CustomUserManager()
+    objects = CustomSellerManager()
 
     USERNAME_FIELD = "phone_number"
     REQUIRED_FIELDS = []
