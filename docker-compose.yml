@@ -9,6 +9,20 @@ volumes:
   elasticsearch-data:
 
 services:
+  # app:
+  #   container_name: app
+  #   build: .
+  #   ports:
+  #     - "9100:9100"
+  #   volumes:
+  #     - .:/app
+  #   command: python tabdeal/manage.py runserver 0.0.0.0:9100
+  #   networks:
+  #     - default
+  #   depends_on:
+  #     - elasticsearch
+  #     - postgres
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
     container_name: elasticsearch
@@ -24,6 +38,8 @@ services:
       - "9300:9300"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - default
 
   postgres:
     image: postgres:14.3
