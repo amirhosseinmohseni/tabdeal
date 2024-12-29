@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
+from rest_framework import status
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
@@ -12,27 +13,18 @@ from .models import Transfer, Charge
 from .serializers import TransferRequestSerializer, TransferResponseSerializer, ChargeRequestSerializer, ChargeResponseSerializer, GetTransfersSerializer
 
 
-@extend_schema(
-    request=TransferRequestSerializer,
-    responses=TransferResponseSerializer
-)
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def charge_customer_wallet(request):
-    seller = request.user
-    customer_phone_number = request.data.get("phone_number")
-    amount = request.data.get("amount", 0)
+executor = ThreadPoolExecutor(max_workers=4)
 
-    if amount <= 0:
-        return Response({"error": "Invalid amount"}, status=400)
-
+def process_transfer(seller: Seller, customer_phone_number: str, amount: int):
     try:
+        if amount <= 0:
+            raise ValueError("Invalid amount.")
         with db_transaction.atomic():
-            seller_wallet = seller.wallet
+            seller = Seller.objects.select_for_update().get(id=seller.id)
             customer = Customer.objects.select_for_update().get(phone_number=customer_phone_number)
 
-            if seller_wallet < amount:
-                return Response({"error": "Insufficient balance"}, status=400)
+            if seller.wallet < amount:
+                raise ValueError("Insufficient balance.")
 
             seller.wallet -= amount
             customer.wallet += amount
@@ -40,20 +32,50 @@ def charge_customer_wallet(request):
             seller.save()
             customer.save()
 
-            Transfer.objects.create(
-                seller=seller,
-                customer=customer,
-                amount=amount,
-            )
+            return {
+                "status": "success", 
+                "message": f"Transferred {amount} from Seller {seller} to Customer {customer}",
+                "seller": seller,
+                "customer": customer,
+                "amount": amount,
+                "created": datetime.now()
+            }
     except Customer.DoesNotExist:
-        return Response({"error": "Customer not found"}, status=404)
+        return {"status": "error", "message": "Customer not found."}
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        return {"status": "error", "message": "An unexpected error occurred."}
 
-    return Response({
-        "seller": seller.id,
-        "customer": customer.id,
-        "amount": amount,
-        "created": datetime.now()
-    })
+@extend_schema(
+    request=TransferRequestSerializer,
+    responses=TransferResponseSerializer
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def charge_customer_wallet(request):
+    try:
+        seller = request.user
+        serializer = TransferRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            
+            customer_phone_number = serializer.validated_data["phone_number"]
+            amount = serializer.validated_data["amount"]
+
+            future = executor.submit(process_transfer, seller, customer_phone_number, amount)
+            result = future.result()
+            response = TransferResponseSerializer(result)
+            
+            if result["status"] == "success":
+                return Response(
+                    response.data, 
+                    status=status.HTTP_201_CREATED
+                )
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+    except Exception as e:
+        print(e)
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @extend_schema(
     request=ChargeRequestSerializer,
@@ -62,23 +84,38 @@ def charge_customer_wallet(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def charge_wallet(request):
-    seller = request.user
-    amount = request.data.get("amount")
+    try:
+        seller = request.user
+        serializer = ChargeRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            amount = serializer.validated_data["amount"]
 
-    if not amount or amount <= 0:
-        return Response({"error": "Invalid amount"}, status=400)
+            if not amount or amount <= 0:
+                return Response({"error": "Invalid amount"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
-    Charge.objects.create(
-        seller=seller,
-        amount=amount,
-        is_accept=False,
-    )
-    return Response({
-        "seller": seller.id,
-        "amount": amount,
-        "created": datetime.now(),
-        "is_accept": False,
-    })
+            Charge.objects.create(
+                seller=seller,
+                amount=amount,
+                is_accept=False,
+            )
+            
+            response = ChargeResponseSerializer(data={
+                    "seller": seller.id,
+                    "amount": amount,
+                    "created": datetime.now(),
+                    "is_accept": False,
+            })
+            if response.is_valid():
+                return Response(
+                    response.data,
+                    status=status.HTTP_201_CREATED
+                )
+            else:
+                return Response(response.errors, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+    except Exception as e:
+        print(e)
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @extend_schema(
     responses=TransferResponseSerializer(many=True)
@@ -87,10 +124,14 @@ class UserTransferListView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        seller = request.user
-        transfers = Transfer.objects.filter(seller_id=seller.id)
-        serializer = TransferResponseSerializer(transfers, many=True)
-        return Response(serializer.data)
+        try:
+            seller = request.user
+            transfers = Transfer.objects.filter(seller_id=seller.id)
+            serializer = TransferResponseSerializer(transfers, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 @extend_schema(
     responses=ChargeResponseSerializer(many=True)
@@ -99,10 +140,14 @@ class UserChargeListView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        seller = request.user
-        charges = Charge.objects.filter(seller_id=seller.id)
-        serializer = ChargeResponseSerializer(charges, many=True)
-        return Response(serializer.data)
+        try:
+            seller = request.user
+            charges = Charge.objects.filter(seller_id=seller.id)
+            serializer = ChargeResponseSerializer(charges, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 @extend_schema(
     responses=TransferResponseSerializer(many=True)
@@ -111,9 +156,13 @@ class TransferListView(APIView):
     permission_classes = [IsAdminUser]
     
     def get(self, request):
-        transfers = Transfer.objects.all()
-        serializer = TransferResponseSerializer(transfers, many=True)
-        return Response(serializer.data)
+        try:
+            transfers = Transfer.objects.all()
+            serializer = TransferResponseSerializer(transfers, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 @extend_schema(
     responses=ChargeResponseSerializer(many=True)
@@ -122,6 +171,10 @@ class ChargeListView(APIView):
     permission_classes = [IsAdminUser]
     
     def get(self, request):
-        charges = Charge.objects.all()
-        serializer = ChargeResponseSerializer(charges, many=True)
-        return Response(serializer.data)
+        try:
+            charges = Charge.objects.all()
+            serializer = ChargeResponseSerializer(charges, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
