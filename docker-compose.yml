@@ -6,8 +6,25 @@ networks:
 
 volumes:
   pg_data:
+  elasticsearch-data:
 
 services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
+    container_name: elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.license.self_generated.type: trial
+      xpack.security.enabled: true
+      node.name: elasticsearch
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      ELASTIC_PASSWORD: elastic_tabdeal
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+
   postgres:
     image: postgres:14.3
     container_name: postgres
