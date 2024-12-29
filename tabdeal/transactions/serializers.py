@@ -9,23 +9,20 @@ class TransferRequestSerializer(serializers.Serializer):
     amount = serializers.IntegerField(min_value=0)
 
 class TransferResponseSerializer(serializers.ModelSerializer):
+    """Serializer for transfer response data."""
     status = serializers.CharField(max_length=10)
     message = serializers.CharField(max_length=100)
     class Meta:
         model = Transfer
         fields = ('seller','customer', 'amount', 'created', 'status', 'message')
-        
-        
+              
 class ChargeRequestSerializer(serializers.Serializer):
     """Serializer for charge request data."""
     amount = serializers.IntegerField(min_value=0)
     
 class ChargeResponseSerializer(serializers.ModelSerializer):
+    """Serializer for charge response data."""
     class Meta:
         model = Charge
         fields = ('seller', 'amount', 'created', 'is_accept')
         
-class GetTransfersSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Transfer
-        fields = ('seller', 'customer', 'amount', 'created')

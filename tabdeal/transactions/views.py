@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sellers.models import Seller, Customer
 from .models import Transfer, Charge
-from .serializers import TransferRequestSerializer, TransferResponseSerializer, ChargeRequestSerializer, ChargeResponseSerializer, GetTransfersSerializer
+from .serializers import TransferRequestSerializer, TransferResponseSerializer, ChargeRequestSerializer, ChargeResponseSerializer
 
 
 executor = ThreadPoolExecutor(max_workers=4)
