@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from sellers.models import Seller, Customer
 from .models import Transfer, Charge
 from .serializers import TransferRequestSerializer, TransferResponseSerializer, ChargeRequestSerializer, ChargeResponseSerializer
+from logs.utils import write_log
 
 
 executor = ThreadPoolExecutor(max_workers=4)
@@ -67,6 +68,14 @@ def charge_customer_wallet(request):
             response = TransferResponseSerializer(result)
             
             if result["status"] == "success":
+                write_log(level="INFO", 
+                          message=f"Customer wallet charged successfully.", 
+                          type="transfer",
+                          source=response.data["seller"],
+                          destination=response.data["customer"],
+                          amount=response.data["amount"],
+                          accept=True
+                )
                 return Response(
                     response.data, 
                     status=status.HTTP_201_CREATED
@@ -106,6 +115,14 @@ def charge_wallet(request):
                     "is_accept": False,
             })
             if response.is_valid():
+                write_log(level="INFO", 
+                          message=f"Seller wallet charge request received successfully.", 
+                          type="request",
+                          source=response.data["seller"],
+                          destination=response.data["seller"],
+                          amount=response.data["amount"],
+                          accept=False
+                )
                 return Response(
                     response.data,
                     status=status.HTTP_201_CREATED
