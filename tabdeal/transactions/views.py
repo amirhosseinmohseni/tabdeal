@@ -62,12 +62,19 @@ def charge_customer_wallet(request):
             
             customer_phone_number = serializer.validated_data["phone_number"]
             amount = serializer.validated_data["amount"]
-
+            
             future = executor.submit(process_transfer, seller, customer_phone_number, amount)
             result = future.result()
             response = TransferResponseSerializer(result)
             
             if result["status"] == "success":
+                customer = Customer.objects.get(id=response.data["customer"])
+                Transfer.objects.create(
+                    seller=seller,
+                    customer=customer,
+                    amount=response.data["amount"],
+                    created=datetime.now()
+                )
                 write_log(level="INFO", 
                           message=f"Customer wallet charged successfully.", 
                           type="transfer",
